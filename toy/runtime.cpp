@@ -8,6 +8,7 @@
 extern "C" {
     void printi(int val);
     void native_echo(long long val);
+    float foo();
 }
 // -----------------------------------------------------------------------------
 struct RuntimeFunction {
@@ -21,9 +22,11 @@ void loadRuntimeLibrary() {
         { "printi",      (void*)&printi }
         ,{ "echo",        (void*)&native_echo }
         ,{ "print",       (void*)&std::printf }
-        // FIXME return value ...
-        // ,{ "sin",       (...*)&std::sin }
-        // ,{ "cos",       (...*)&std::cos }
+        // FIXME return value .....
+        ,{ "foo",         (void*)&foo }
+        ,{ "sin",         (void*)&sinf }
+        ,{ "cos",         (void*)&cosf }
+        ,{ "sin_d",       (void*)&sin }
     };
 
     for (const auto& func : registry) {

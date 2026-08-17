@@ -1,4 +1,6 @@
 extern void print()
+extern double foo()
+extern double sin_d(double value)
 
 int do_math(int a) {
   int x = a * 5;
@@ -6,8 +8,10 @@ int do_math(int a) {
 }
 
 int x = 4;
+double bar = 1.1 * 1.0;
 
 // if (x > 4) {
 // }
 
-print("Hello World! x is %d, math is %d\n", x, do_math(3));
+print("Hello World! x is %d, math is %d, sin(2.1)=%g << WRONG!!!\n", x, do_math(3), sin_d(2.1));
+print("Foo is %f, Bar is %f\n", foo(), bar);
