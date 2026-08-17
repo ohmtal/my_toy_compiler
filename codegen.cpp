@@ -2,6 +2,9 @@
 #include "codegen.h"
 #include "parser.hpp"
 
+#include "llvm/ExecutionEngine/SectionMemoryManager.h"
+#include "llvm/ExecutionEngine/RuntimeDyld.h"
+
 using namespace std;
 
 /* Compile the AST into a module */
@@ -11,7 +14,8 @@ void CodeGenContext::generateCode(NBlock& root)
 	
 	/* Create the top level interpreter function to call as entry */
 	vector<Type*> argTypes;
-	FunctionType *ftype = FunctionType::get(Type::getVoidTy(MyContext), makeArrayRef(argTypes), false);
+	// XXTH orig FunctionType *ftype = FunctionType::get(Type::getVoidTy(MyContext), makeArrayRef(argTypes), false);
+	FunctionType *ftype = FunctionType::get(Type::getVoidTy(MyContext), std::vector<Type*>(argTypes), false);
 	mainFunction = Function::Create(ftype, GlobalValue::InternalLinkage, "main", module);
 	BasicBlock *bblock = BasicBlock::Create(MyContext, "entry", mainFunction, 0);
 	
@@ -33,19 +37,112 @@ void CodeGenContext::generateCode(NBlock& root)
 	pm.run(*module);
 }
 
-/* Executes the AST by running the main function */
+
+
+class ToyRuntimeResolver : public llvm::SectionMemoryManager {
+	std::map<std::string, void*> &symbols;
+public:
+	ToyRuntimeResolver(std::map<std::string, void*> &symbolsMap) : symbols(symbolsMap) {}
+
+	llvm::JITSymbol findSymbol(const std::string &Name) override {
+		std::string cleanName = Name;
+		if (!cleanName.empty() && cleanName[0] == '_') {
+			cleanName = cleanName.substr(1);
+		}
+
+		if (symbols.count(cleanName)) {
+			uintptr_t addr = reinterpret_cast<uintptr_t>(symbols[cleanName]);
+			return llvm::JITSymbol(addr, llvm::JITSymbolFlags::Exported | llvm::JITSymbolFlags::Absolute);
+		}
+
+		return llvm::SectionMemoryManager::findSymbol(Name);
+	}
+
+	llvm::JITSymbol findSymbolInLogicalDylib(const std::string &Name) override {
+		std::string cleanName = Name;
+		if (!cleanName.empty() && cleanName[0] == '_') {
+			cleanName = cleanName.substr(1);
+		}
+
+		if (symbols.count(cleanName)) {
+			uintptr_t addr = reinterpret_cast<uintptr_t>(symbols[cleanName]);
+			return llvm::JITSymbol(addr, llvm::JITSymbolFlags::Exported | llvm::JITSymbolFlags::Absolute);
+		}
+
+		return llvm::SectionMemoryManager::findSymbolInLogicalDylib(Name);
+	}
+};
+// -----------------------------------------------------------------------------
 GenericValue CodeGenContext::runCode() {
 	std::cout << "Running code...\n";
-	ExecutionEngine *ee = EngineBuilder( unique_ptr<Module>(module) ).create();
+
+	std::unique_ptr<llvm::Module> modPtr(module);
+	module = nullptr;
+
+	llvm::EngineBuilder builder(std::move(modPtr));
+	builder.setEngineKind(llvm::EngineKind::JIT);
+
+	auto memMgr = std::make_unique<llvm::SectionMemoryManager>();
+	builder.setMCJITMemoryManager(std::move(memMgr));
+
+	std::unique_ptr<llvm::ExecutionEngine> ee(builder.create());
+	if (!ee) {
+		std::cerr << "CRITICAL ERROR: JIT Execution Engine could not be created!\n";
+		exit(1);
+	}
+
+	std::cout << "Finalizing object...\n";
 	ee->finalizeObject();
-	vector<GenericValue> noargs;
-	GenericValue v = ee->runFunction(mainFunction, noargs);
+
+	llvm::Function *mainFunction = ee->FindFunctionNamed("main");
+	if (!mainFunction) {
+		std::cerr << "CRITICAL ERROR: 'main' function not found!\n";
+		exit(1);
+	}
+
+	std::cout << "Invoking main function...\n";
+	GenericValue v = ee->runFunction(mainFunction, llvm::ArrayRef<GenericValue>());
 	std::cout << "Code was run.\n";
+
 	return v;
 }
 
+// GenericValue CodeGenContext::runCode() {
+// 	std::cout << "Running code...\n";
+//
+// 	std::unique_ptr<llvm::Module> modPtr(module);
+// 	module = nullptr;
+// 	llvm::EngineBuilder builder(std::move(modPtr));
+// 	builder.setEngineKind(llvm::EngineKind::JIT);
+//
+// 	auto memMgr = std::make_unique<llvm::SectionMemoryManager>();
+// 	builder.setMCJITMemoryManager(std::move(memMgr));
+//
+// 	llvm::ExecutionEngine *ee = builder.create();
+// 	if (!ee) {
+// 		std::cerr << "CRITICAL ERROR: JIT Execution Engine could not be created!\n";
+// 		exit(1);
+// 	}
+//
+// 	std::cout << "Finalizing object...\n";
+// 	ee->finalizeObject();
+//
+// 	llvm::Function *mainFunction = ee->FindFunctionNamed("main");
+// 	if (!mainFunction) {
+// 		std::cerr << "CRITICAL ERROR: 'main' function not found!\n";
+// 		exit(1);
+// 	}
+//
+// 	std::cout << "Invoking main function...\n";
+// 	GenericValue v = ee->runFunction(mainFunction, llvm::ArrayRef<GenericValue>());
+// 	std::cout << "Code was run.\n";
+// 	return v;
+// }
+// -----------------------------------------------------------------------------
+
+
 /* Returns an LLVM type based on the identifier */
-static Type *typeOf(const NIdentifier& type) 
+static Type *typeOf(const NIdentifier& type)
 {
 	if (type.name.compare("int") == 0) {
 		return Type::getInt64Ty(MyContext);
@@ -78,25 +175,28 @@ Value* NIdentifier::codeGen(CodeGenContext& context)
 		return NULL;
 	}
 
-	// return nullptr;  
+	// return nullptr;
 	return new LoadInst(context.locals()[name]->getType(),context.locals()[name], name, false, context.currentBlock());
 }
 
-Value* NMethodCall::codeGen(CodeGenContext& context)
+// -----------------------------------------------------------------------------
+llvm::Value* NMethodCall::codeGen(CodeGenContext& context)
 {
-	Function *function = context.module->getFunction(id.name.c_str());
-	if (function == NULL) {
-		std::cerr << "no such function " << id.name << endl;
+	llvm::Function* function = context.module->getFunction(id.name.c_str());
+
+	if (!function) {
+		std::cerr << "Semantics Error: Unknown function " << id.name << "\n";
+		return nullptr;
 	}
-	std::vector<Value*> args;
-	ExpressionList::const_iterator it;
-	for (it = arguments.begin(); it != arguments.end(); it++) {
-		args.push_back((**it).codeGen(context));
+
+	std::vector<llvm::Value*> args;
+	for (auto argExpr : arguments) {
+		args.push_back(argExpr->codeGen(context));
 	}
-	CallInst *call = CallInst::Create(function, makeArrayRef(args), "", context.currentBlock());
-	std::cout << "Creating method call: " << id.name << endl;
-	return call;
+
+	return llvm::CallInst::Create( function, llvm::ArrayRef<llvm::Value*>(args), "", context.currentBlock() );
 }
+// -----------------------------------------------------------------------------
 
 Value* NBinaryOperator::codeGen(CodeGenContext& context)
 {
@@ -108,12 +208,12 @@ Value* NBinaryOperator::codeGen(CodeGenContext& context)
 		case TMINUS: 	instr = Instruction::Sub; goto math;
 		case TMUL: 		instr = Instruction::Mul; goto math;
 		case TDIV: 		instr = Instruction::SDiv; goto math;
-				
+
 		/* TODO comparison */
 	}
 	return NULL;
 math:
-	return BinaryOperator::Create(instr, lhs.codeGen(context), 
+	return BinaryOperator::Create(instr, lhs.codeGen(context),
 		rhs.codeGen(context), "", context.currentBlock());
 }
 
@@ -167,16 +267,23 @@ Value* NVariableDeclaration::codeGen(CodeGenContext& context)
 
 Value* NExternDeclaration::codeGen(CodeGenContext& context)
 {
-    vector<Type*> argTypes;
-    VariableList::const_iterator it;
-    for (it = arguments.begin(); it != arguments.end(); it++) {
-        argTypes.push_back(typeOf((**it).type));
-    }
-    FunctionType *ftype = FunctionType::get(typeOf(type), makeArrayRef(argTypes), false);
-    Function *function = Function::Create(ftype, GlobalValue::ExternalLinkage, id.name.c_str(), context.module);
-    return function;
-}
+	std::vector<Type*> argTypes;
+	for (auto it = arguments.begin(); it != arguments.end(); it++) {
+		argTypes.push_back(typeOf((**it).type));
+	}
 
+	FunctionType *ftype = FunctionType::get(typeOf(type), argTypes, false);
+
+	Function *function = Function::Create(
+		ftype,
+		GlobalValue::ExternalLinkage,
+		id.name,
+		context.module
+	);
+
+	return function;
+}
+// -----------------------------------------------------------------------------
 Value* NFunctionDeclaration::codeGen(CodeGenContext& context)
 {
 	vector<Type*> argTypes;
@@ -184,7 +291,7 @@ Value* NFunctionDeclaration::codeGen(CodeGenContext& context)
 	for (it = arguments.begin(); it != arguments.end(); it++) {
 		argTypes.push_back(typeOf((**it).type));
 	}
-	FunctionType *ftype = FunctionType::get(typeOf(type), makeArrayRef(argTypes), false);
+	FunctionType *ftype = FunctionType::get(typeOf(type), std::vector<Type*>(argTypes), false);
 	Function *function = Function::Create(ftype, GlobalValue::InternalLinkage, id.name.c_str(), context.module);
 	BasicBlock *bblock = BasicBlock::Create(MyContext, "entry", function, 0);
 
@@ -195,12 +302,12 @@ Value* NFunctionDeclaration::codeGen(CodeGenContext& context)
 
 	for (it = arguments.begin(); it != arguments.end(); it++) {
 		(**it).codeGen(context);
-		
+
 		argumentValue = &*argsValues++;
 		argumentValue->setName((*it)->id.name.c_str());
 		StoreInst *inst = new StoreInst(argumentValue, context.locals()[(*it)->id.name], false, bblock);
 	}
-	
+
 	block.codeGen(context);
 	ReturnInst::Create(MyContext, context.getCurrentReturnValue(), bblock);
 

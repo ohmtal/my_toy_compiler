@@ -1,80 +1,61 @@
+//XXTH completly rewritten
+
 #include <iostream>
 #include "codegen.h"
 #include "node.h"
 
-using namespace std;
 
-extern int yyparse();
-extern NBlock* programBlock;
-
-
-llvm::Function* createPrintfFunction(CodeGenContext& context)
-{
-    std::vector<llvm::Type*> printf_arg_types;
-    printf_arg_types.push_back(llvm::Type::getInt8PtrTy(MyContext)); //char*
-
-    std::cout << "printf" << std::endl;
-
-    llvm::FunctionType* printf_type =
-        llvm::FunctionType::get(
-            llvm::Type::getInt32Ty(MyContext), printf_arg_types, true);
-
-    llvm::Function *func = llvm::Function::Create(
-                printf_type, llvm::Function::ExternalLinkage,
-                llvm::Twine("printf"),
-                context.module
-           );
-    func->setCallingConv(llvm::CallingConv::C);
-    return func;
+extern "C" void native_echo(long long value) {
+    std::cout << value << std::endl;
 }
 
-void createEchoFunction(CodeGenContext& context, llvm::Function* printfFn)
+void createEchoFunction(CodeGenContext& context)
 {
+    // 1. Define function signature: void echo(int64)
     std::vector<llvm::Type*> echo_arg_types;
     echo_arg_types.push_back(llvm::Type::getInt64Ty(MyContext));
 
     llvm::FunctionType* echo_type =
-        llvm::FunctionType::get(
-            llvm::Type::getVoidTy(MyContext), echo_arg_types, false);
+    llvm::FunctionType::get(llvm::Type::getVoidTy(MyContext), echo_arg_types, false);
 
+    // 2. Create the 'echo' wrapper inside your language module
     llvm::Function *func = llvm::Function::Create(
-                echo_type, llvm::Function::InternalLinkage,
-                llvm::Twine("echo"),
-                context.module
-           );
+        echo_type, llvm::Function::ExternalLinkage,
+        "echo", context.module
+    );
+
     llvm::BasicBlock *bblock = llvm::BasicBlock::Create(MyContext, "entry", func, 0);
-	context.pushBlock(bblock);
-    
-    const char *constValue = "%d\n";
-    llvm::Constant *format_const = llvm::ConstantDataArray::getString(MyContext, constValue);
-    llvm::GlobalVariable *var =
-        new llvm::GlobalVariable(
-            *context.module, llvm::ArrayType::get(llvm::IntegerType::get(MyContext, 8), strlen(constValue)+1),
-            true, llvm::GlobalValue::PrivateLinkage, format_const, ".str");
-    llvm::Constant *zero =
-        llvm::Constant::getNullValue(llvm::IntegerType::getInt32Ty(MyContext));
+    context.pushBlock(bblock);
 
-    std::vector<llvm::Constant*> indices;
-    indices.push_back(zero);
-    indices.push_back(zero);
-    llvm::Constant *var_ref = llvm::ConstantExpr::getGetElementPtr(
-	llvm::ArrayType::get(llvm::IntegerType::get(MyContext, 8), strlen(constValue)+1),
-        var, indices);
+    // 3. HARDCODE THE C++ ADDRESS INTO THE COMPILER (The Bulletproof Fix)
+    // We fetch the literal runtime memory location of your compiled native_echo function
+    uintptr_t nativeAddress = reinterpret_cast<uintptr_t>(&native_echo);
 
-    std::vector<Value*> args;
-    args.push_back(var_ref);
+    // Convert that numeric address into an LLVM 64-bit integer constant
+    llvm::Value* addrConstant = llvm::ConstantInt::get(
+        llvm::Type::getInt64Ty(MyContext), nativeAddress
+    );
 
-    Function::arg_iterator argsValues = func->arg_begin();
-    Value* toPrint = &*argsValues++;
-    toPrint->setName("toPrint");
-    args.push_back(toPrint);
-    
-	CallInst *call = CallInst::Create(printfFn, makeArrayRef(args), "", bblock);
-	ReturnInst::Create(MyContext, bblock);
-	context.popBlock();
+    // Cast the raw 64-bit address into a valid LLVM generic function pointer (ptr)
+    llvm::Value* functionPtr = llvm::CastInst::Create(
+        llvm::Instruction::IntToPtr,
+        addrConstant,
+        llvm::PointerType::getUnqual(MyContext),
+                                                      "funcPtrCast",
+                                                      bblock
+    );
+
+    // 4. Collect the argument passed into 'echo' and pass it down
+    std::vector<llvm::Value*> args;
+    args.push_back(&*func->arg_begin()); // Pass the incoming 64-bit integer directly
+
+    // 5. Execute the call using the explicit function pointer value and signature layout
+    llvm::CallInst::Create(echo_type, functionPtr, llvm::ArrayRef<llvm::Value*>(args), "", bblock);
+    llvm::ReturnInst::Create(MyContext, bblock);
+
+    context.popBlock();
 }
 
 void createCoreFunctions(CodeGenContext& context){
-	llvm::Function* printfFn = createPrintfFunction(context);
-    createEchoFunction(context, printfFn);
+       createEchoFunction(context);
 }

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stack>
 #include <typeinfo>
 #include <llvm/IR/Module.h>
@@ -40,6 +42,7 @@ public:
 
     Module *module;
     CodeGenContext() { module = new Module("main", MyContext); }
+    ~CodeGenContext() { if (module) { delete module; } }
     
     void generateCode(NBlock& root);
     GenericValue runCode();
@@ -49,4 +52,5 @@ public:
     void popBlock() { CodeGenBlock *top = blocks.top(); blocks.pop(); delete top; }
     void setCurrentReturnValue(Value *value) { blocks.top()->returnValue = value; }
     Value* getCurrentReturnValue() { return blocks.top()->returnValue; }
+
 };
