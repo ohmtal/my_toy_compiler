@@ -152,7 +152,23 @@ public:
 	std::string value;
 
 	NString(const std::string& val) {
-		value = val.substr(1, val.length() - 2);
+		std::string raw = val.substr(1, val.length() - 2);
+		value = "";
+		for (size_t i = 0; i < raw.length(); ++i) {
+			if (raw[i] == '\\' && i + 1 < raw.length()) {
+				switch (raw[i + 1]) {
+					case 'n':  value += '\n'; break;
+					case 't':  value += '\t'; break;
+					case 'r':  value += '\r'; break;
+					case '\\': value += '\\'; break;
+					case '"':  value += '"';  break;
+					default:   value += raw[i]; value += raw[i + 1]; break;
+				}
+				i++;
+			} else {
+				value += raw[i];
+			}
+		}
 	}
 
 	virtual llvm::Value* codeGen(CodeGenContext& context) override;

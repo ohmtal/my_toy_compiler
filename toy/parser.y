@@ -5,8 +5,17 @@
 	NBlock *programBlock; /* the top level root node of our final AST */
 
 	extern int yylex();
-	void yyerror(const char *s) { std::printf("Error: %s\n", s);std::exit(1); }
+	extern int yylineno;
+	extern char* yytext;
+	void yyerror(const char *s) {
+		std::fprintf(stderr, "Compiler Error in Line %d, Row %d: %s (at Token: '%s')\n", yylineno, yytext, s);
+		std::exit(1);
+	}
+// 	void yyerror(const char *s) { std::printf("Error: %s\n", s);std::exit(1); }
 %}
+
+%define parse.error detailed
+%locations
 
 /* Represents the many different ways we can access our data */
 %union {
@@ -32,6 +41,7 @@
 %token <token> TPLUS TMINUS TMUL TDIV
 %token <token> TRETURN TEXTERN
 %token <string> TQUOT
+%token <token> TSEMI
 
 /* Define the type of node our nonterminal symbols represent.
    The types refer to the %union declaration above. Ex: when
@@ -61,9 +71,9 @@ stmts : stmt { $$ = new NBlock(); $$->statements.push_back($<stmt>1); }
 	  | stmts stmt { $1->statements.push_back($<stmt>2); }
 	  ;
 
-stmt : var_decl | func_decl | extern_decl
-	 | expr { $$ = new NExpressionStatement(*$1); }
-	 | TRETURN expr { $$ = new NReturnStatement(*$2); }
+stmt : var_decl optional_semi | func_decl optional_semi | extern_decl optional_semi
+	 | expr optional_semi { $$ = new NExpressionStatement(*$1); }
+	 | TRETURN expr optional_semi { $$ = new NReturnStatement(*$2); }
      ;
 
 block : TLBRACE stmts TRBRACE { $$ = $2; }
@@ -114,5 +124,8 @@ call_args : /*blank*/  { $$ = new ExpressionList(); }
 
 comparison : TCEQ | TCNE | TCLT | TCLE | TCGT | TCGE;
 
+optional_semi : TSEMI
+              |
+              ;
 
 %%

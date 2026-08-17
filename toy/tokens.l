@@ -5,9 +5,18 @@
 
 #define SAVE_TOKEN  yylval.string = new std::string(yytext, yyleng)
 #define TOKEN(t)    (yylval.token = t)
+#define YY_USER_ACTION \
+    yylloc.first_line = yylloc.last_line = yylineno; \
+    yylloc.first_column = yylloc.last_column; \
+    for(int i = 0; yytext[i] != '\0'; i++) { \
+        if(yytext[i] == '\n') { yylloc.last_line++; yylloc.last_column = 0; } \
+        else { yylloc.last_column++; } \
+    }
+
 %}
 
 %option noyywrap
+%option yylineno
 
 %%
 
@@ -41,6 +50,7 @@
 "*"		          				return TOKEN(TMUL);
 "/"				          		return TOKEN(TDIV);
 
-.                               printf("Unknown token!\n"); yyterminate();
+";"                             return TOKEN(TSEMI);
+.                               printf("Unknown token!\n"); std::exit(1);
 
 %%

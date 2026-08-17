@@ -142,12 +142,14 @@ Value* NDouble::codeGen(CodeGenContext& context)
 	return ConstantFP::get(Type::getDoubleTy(MyContext), value);
 }
 
+
 Value* NIdentifier::codeGen(CodeGenContext& context)
 {
 	std::cout << "Creating identifier reference: " << name << endl;
 	if (context.locals().find(name) == context.locals().end()) {
 		std::cerr << "undeclared variable " << name << endl;
-		return NULL;
+		// bad idea return NULL;
+		std::exit(1);
 	}
 
 	// return nullptr;
@@ -161,7 +163,8 @@ llvm::Value* NMethodCall::codeGen(CodeGenContext& context)
 
 	if (!function) {
 		std::cerr << "Semantics Error: Unknown function " << id.name << "\n";
-		return nullptr;
+		// bad idea return nullptr;
+		std::exit(1);
 	}
 
 	std::vector<llvm::Value*> args;
@@ -304,6 +307,7 @@ Value*  NString::codeGen(CodeGenContext& context)  {
 	string_const,
 	".str.literal"
 	);
+
 
 	return global_str;
 }

@@ -19,7 +19,7 @@ void loadRuntimeLibrary() {
     std::vector<RuntimeFunction> registry = {
         { "printi",      (void*)&printi }
         ,{ "echo",        (void*)&native_echo }
-        ,{ "print",       (void*)&std::puts }
+        ,{ "print",       (void*)&std::printf }
         // { "sin",       (void*)&std::sin },
         // { "cos",       (void*)&std::cos }
     };
