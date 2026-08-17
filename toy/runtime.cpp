@@ -2,6 +2,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <string>
 #include <vector>
+#include <cmath>
 
 // -----------------------------------------------------------------------------
 extern "C" {
@@ -20,8 +21,9 @@ void loadRuntimeLibrary() {
         { "printi",      (void*)&printi }
         ,{ "echo",        (void*)&native_echo }
         ,{ "print",       (void*)&std::printf }
-        // { "sin",       (void*)&std::sin },
-        // { "cos",       (void*)&std::cos }
+        // FIXME return value ...
+        // ,{ "sin",       (...*)&std::sin }
+        // ,{ "cos",       (...*)&std::cos }
     };
 
     for (const auto& func : registry) {
