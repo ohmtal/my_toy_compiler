@@ -6,10 +6,7 @@
 
 using namespace std;
 
-extern "C" {
-	void printi(int val);
-}
-
+extern void loadRuntimeLibrary();
 extern int yyparse();
 extern NBlock* programBlock;
 
@@ -24,6 +21,8 @@ int main(int argc, char **argv)
 {
 	if (argc > 1) {
 		open_file(argv[1]);
+	} else {
+		open_file("scripts/main.toy");
 	}
 	yyparse();
 	cout << programBlock << endl;
@@ -32,12 +31,11 @@ int main(int argc, char **argv)
 	InitializeNativeTargetAsmPrinter();
 	InitializeNativeTargetAsmParser();
 
-	//FIXME need something better
-	// i add the new extern functions here :::
-	llvm::sys::DynamicLibrary::AddSymbol("printi", (void*)&printi);
+	// add bindings:
+	loadRuntimeLibrary();
 
 	CodeGenContext context;
-	createCoreFunctions(context);
+	// // // createCoreFunctions(context);
 	context.generateCode(*programBlock);
 	context.runCode();
 	

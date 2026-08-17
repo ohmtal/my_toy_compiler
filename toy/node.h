@@ -2,7 +2,10 @@
 
 #include <iostream>
 #include <vector>
+#include <string>
 #include <llvm/IR/Value.h>
+#include <llvm/IR/Constants.h>
+
 
 class CodeGenContext;
 class NStatement;
@@ -24,7 +27,7 @@ class NExpression : public Node {
 
 class NStatement : public Node {
 };
-
+// -----------------------------------------------------------------------------
 class NInteger : public NExpression {
 public:
 	long long value;
@@ -32,6 +35,7 @@ public:
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
 
+// -----------------------------------------------------------------------------
 class NDouble : public NExpression {
 public:
 	double value;
@@ -39,6 +43,7 @@ public:
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
 
+// -----------------------------------------------------------------------------
 class NIdentifier : public NExpression {
 public:
 	std::string name;
@@ -46,6 +51,7 @@ public:
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
 
+// -----------------------------------------------------------------------------
 class NMethodCall : public NExpression {
 public:
 	const NIdentifier& id;
@@ -55,6 +61,7 @@ public:
 	NMethodCall(const NIdentifier& id) : id(id) { }
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
+// -----------------------------------------------------------------------------
 
 class NBinaryOperator : public NExpression {
 public:
@@ -65,15 +72,17 @@ public:
 		lhs(lhs), rhs(rhs), op(op) { }
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
+// -----------------------------------------------------------------------------
 
 class NAssignment : public NExpression {
 public:
 	NIdentifier& lhs;
 	NExpression& rhs;
-	NAssignment(NIdentifier& lhs, NExpression& rhs) : 
+	NAssignment(NIdentifier& lhs, NExpression& rhs) :
 		lhs(lhs), rhs(rhs) { }
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
+// -----------------------------------------------------------------------------
 
 class NBlock : public NExpression {
 public:
@@ -81,22 +90,25 @@ public:
 	NBlock() { }
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
+// -----------------------------------------------------------------------------
 
 class NExpressionStatement : public NStatement {
 public:
 	NExpression& expression;
-	NExpressionStatement(NExpression& expression) : 
+	NExpressionStatement(NExpression& expression) :
 		expression(expression) { }
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
+// -----------------------------------------------------------------------------
 
 class NReturnStatement : public NStatement {
 public:
 	NExpression& expression;
-	NReturnStatement(NExpression& expression) : 
+	NReturnStatement(NExpression& expression) :
 		expression(expression) { }
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
+// -----------------------------------------------------------------------------
 
 class NVariableDeclaration : public NStatement {
 public:
@@ -109,6 +121,7 @@ public:
 		type(type), id(id), assignmentExpr(assignmentExpr) { }
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
+// -----------------------------------------------------------------------------
 
 class NExternDeclaration : public NStatement {
 public:
@@ -120,6 +133,7 @@ public:
         type(type), id(id), arguments(arguments) {}
     virtual llvm::Value* codeGen(CodeGenContext& context);
 };
+// -----------------------------------------------------------------------------
 
 class NFunctionDeclaration : public NStatement {
 public:
@@ -127,8 +141,21 @@ public:
 	const NIdentifier& id;
 	VariableList arguments;
 	NBlock& block;
-	NFunctionDeclaration(const NIdentifier& type, const NIdentifier& id, 
+	NFunctionDeclaration(const NIdentifier& type, const NIdentifier& id,
 			const VariableList& arguments, NBlock& block) :
 		type(type), id(id), arguments(arguments), block(block) { }
 	virtual llvm::Value* codeGen(CodeGenContext& context);
 };
+// -----------------------------------------------------------------------------
+class NString : public NExpression {
+public:
+	std::string value;
+
+	NString(const std::string& val) {
+		value = val.substr(1, val.length() - 2);
+	}
+
+	virtual llvm::Value* codeGen(CodeGenContext& context) override;
+};
+
+

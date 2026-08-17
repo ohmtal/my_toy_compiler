@@ -1,0 +1,4 @@
+extern void print(string val)
+
+print("Hello World!")
+

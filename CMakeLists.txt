@@ -19,12 +19,12 @@ add_definitions(${LLVM_DEFINITIONS})
 # --------------------------------------------------------
 #  Flex and Bison Files
 # --------------------------------------------------------
-bison_target(MyParser parser.y
+bison_target(MyParser toy/parser.y
     ${CMAKE_CURRENT_BINARY_DIR}/parser.cpp
     DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/parser.hpp
 )
 
-flex_target(MyLexer tokens.l
+flex_target(MyLexer toy/tokens.l
     ${CMAKE_CURRENT_BINARY_DIR}/tokens.cpp
 )
 
@@ -33,40 +33,31 @@ add_flex_bison_dependency(MyLexer MyParser)
 # --------------------------------------------------------
 #  Executable
 # --------------------------------------------------------
-add_executable(parser
-    main.cpp
-    codegen.cpp
-    corefn.cpp
-    native.cpp
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
+
+set(TARGET_NAME parser)
+
+add_executable(${TARGET_NAME}
+    toy/main.cpp
+    toy/codegen.cpp
+    toy/runtime.cpp
+    toy/native.cpp
     ${BISON_MyParser_OUTPUTS}
     ${FLEX_MyLexer_OUTPUTS}
 )
 
-target_include_directories(parser PRIVATE
+
+
+target_include_directories(${TARGET_NAME} PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/toy
 )
 
 # --------------------------------------------------------
 # Link LLVM and System Libraries
 # --------------------------------------------------------
-# llvm_map_components_to_libnames(llvm_libs core support native codegen)
 
-# target_link_libraries(parser PRIVATE
-#     ${llvm_libs}
-#     Threads::Threads
-#     ${CMAKE_DL_LIBS}
-# )
-
-# llvm_config(parser core support native codegen)
-#
-# target_link_libraries(parser PRIVATE
-#     ${LLVM_AVAILABLE_LIBS}
-#     Threads::Threads
-#     ${CMAKE_DL_LIBS}
-# )
-
-target_link_libraries(parser PRIVATE
+target_link_libraries(${TARGET_NAME} PRIVATE
     LLVM
     Threads::Threads
     ${CMAKE_DL_LIBS}

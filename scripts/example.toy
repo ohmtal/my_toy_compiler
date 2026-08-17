@@ -1,3 +1,4 @@
+extern void echo(int val)
 extern void printi(int val)
 
 int do_math(int a) {

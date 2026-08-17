@@ -18,7 +18,9 @@
 [0-9]+\.[0-9]* 			    SAVE_TOKEN; return TDOUBLE;
 [0-9]+					        SAVE_TOKEN; return TINTEGER;
 
-"="						          return TOKEN(TEQUAL);
+"\""[^\"]*"\""         { yylval.string = new std::string(yytext); return TQUOT; }
+
+"="	    				          return TOKEN(TEQUAL);
 "=="				          	return TOKEN(TCEQ);
 "!="			          		return TOKEN(TCNE);
 "<"				          		return TOKEN(TCLT);
@@ -28,10 +30,10 @@
 
 "("	          					return TOKEN(TLPAREN);
 ")"					          	return TOKEN(TRPAREN);
-"{"         						return TOKEN(TLBRACE);
+"{"         					return TOKEN(TLBRACE);
 "}"					          	return TOKEN(TRBRACE);
 
-"."         						return TOKEN(TDOT);
+"."         					return TOKEN(TDOT);
 ","				          		return TOKEN(TCOMMA);
 
 "+"				          		return TOKEN(TPLUS);
@@ -39,6 +41,6 @@
 "*"		          				return TOKEN(TMUL);
 "/"				          		return TOKEN(TDIV);
 
-.                       printf("Unknown token!\n"); yyterminate();
+.                               printf("Unknown token!\n"); yyterminate();
 
 %%

@@ -5,6 +5,12 @@
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
 
+#include <string>
+#include <llvm/IR/Value.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Instructions.h>
+
 using namespace std;
 
 /* Compile the AST into a module */
@@ -106,41 +112,7 @@ GenericValue CodeGenContext::runCode() {
 
 	return v;
 }
-
-// GenericValue CodeGenContext::runCode() {
-// 	std::cout << "Running code...\n";
-//
-// 	std::unique_ptr<llvm::Module> modPtr(module);
-// 	module = nullptr;
-// 	llvm::EngineBuilder builder(std::move(modPtr));
-// 	builder.setEngineKind(llvm::EngineKind::JIT);
-//
-// 	auto memMgr = std::make_unique<llvm::SectionMemoryManager>();
-// 	builder.setMCJITMemoryManager(std::move(memMgr));
-//
-// 	llvm::ExecutionEngine *ee = builder.create();
-// 	if (!ee) {
-// 		std::cerr << "CRITICAL ERROR: JIT Execution Engine could not be created!\n";
-// 		exit(1);
-// 	}
-//
-// 	std::cout << "Finalizing object...\n";
-// 	ee->finalizeObject();
-//
-// 	llvm::Function *mainFunction = ee->FindFunctionNamed("main");
-// 	if (!mainFunction) {
-// 		std::cerr << "CRITICAL ERROR: 'main' function not found!\n";
-// 		exit(1);
-// 	}
-//
-// 	std::cout << "Invoking main function...\n";
-// 	GenericValue v = ee->runFunction(mainFunction, llvm::ArrayRef<GenericValue>());
-// 	std::cout << "Code was run.\n";
-// 	return v;
-// }
 // -----------------------------------------------------------------------------
-
-
 /* Returns an LLVM type based on the identifier */
 static Type *typeOf(const NIdentifier& type)
 {
@@ -149,6 +121,9 @@ static Type *typeOf(const NIdentifier& type)
 	}
 	else if (type.name.compare("double") == 0) {
 		return Type::getDoubleTy(MyContext);
+	}
+	else if (type.name == "string") {
+		return llvm::PointerType::getUnqual(MyContext);
 	}
 	return Type::getVoidTy(MyContext);
 }
@@ -314,4 +289,21 @@ Value* NFunctionDeclaration::codeGen(CodeGenContext& context)
 	context.popBlock();
 	std::cout << "Creating function: " << id.name << endl;
 	return function;
+}
+// -----------------------------------------------------------------------------
+Value*  NString::codeGen(CodeGenContext& context)  {
+	std::cout << "Creating LLVM String constant: " << value << std::endl;
+
+	llvm::Constant *string_const = llvm::ConstantDataArray::getString(MyContext, value, true);
+	llvm::ArrayType* array_type = llvm::ArrayType::get(llvm::Type::getInt8Ty(MyContext), value.length() + 1);
+	llvm::GlobalVariable *global_str = new llvm::GlobalVariable(
+		*context.module,
+		array_type,
+		true, //  (read-only)
+	llvm::GlobalValue::PrivateLinkage,
+	string_const,
+	".str.literal"
+	);
+
+	return global_str;
 }
