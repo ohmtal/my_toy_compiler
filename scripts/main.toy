@@ -1,8 +1,13 @@
-extern void print(string val);
+extern void print()
 
 int do_math(int a) {
   int x = a * 5;
   return x + 3;
 }
 
-print("Hello World! %d\n", do_math(3));
+int x = 4;
+
+// if (x > 4) {
+// }
+
+print("Hello World! x is %d, math is %d\n", x, do_math(3));

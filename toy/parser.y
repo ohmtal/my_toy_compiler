@@ -8,10 +8,14 @@
 	extern int yylineno;
 	extern char* yytext;
 	void yyerror(const char *s) {
-		std::fprintf(stderr, "Compiler Error in Line %d, Row %d: %s (at Token: '%s')\n", yylineno, yytext, s);
+		if (!s) {
+			std::fprintf(stderr, "parse error\n");
+		} else {
+		       std::fprintf(stderr, "Compiler Error in Line %d: %s (at Token: '%s')\n",
+                     yylineno, s, yytext ? yytext : "");
+		}
 		std::exit(1);
 	}
-// 	void yyerror(const char *s) { std::printf("Error: %s\n", s);std::exit(1); }
 %}
 
 %define parse.error detailed
@@ -42,6 +46,7 @@
 %token <token> TRETURN TEXTERN
 %token <string> TQUOT
 %token <token> TSEMI
+
 
 /* Define the type of node our nonterminal symbols represent.
    The types refer to the %union declaration above. Ex: when

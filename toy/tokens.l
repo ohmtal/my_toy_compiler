@@ -23,11 +23,16 @@
 [ \t\n]					        ;
 "extern"                        return TOKEN(TEXTERN);
 "return"				        return TOKEN(TRETURN);
-[a-zA-Z_][a-zA-Z0-9_]*  SAVE_TOKEN; return TIDENTIFIER;
-[0-9]+\.[0-9]* 			    SAVE_TOKEN; return TDOUBLE;
+[a-zA-Z_][a-zA-Z0-9_]*          SAVE_TOKEN; return TIDENTIFIER;
+[0-9]+\.[0-9]* 			        SAVE_TOKEN; return TDOUBLE;
 [0-9]+					        SAVE_TOKEN; return TINTEGER;
 
-"\""[^\"]*"\""         { yylval.string = new std::string(yytext); return TQUOT; }
+"\""[^\"]*"\""                { yylval.string = new std::string(yytext); return TQUOT; }
+
+"//"[^\n]*                    { /* single line comment */ }
+"/*"([^*]|\*+[^*/])*\*+"/"    { /* multi line comment */ }
+
+
 
 "="	    				          return TOKEN(TEQUAL);
 "=="				          	return TOKEN(TCEQ);
